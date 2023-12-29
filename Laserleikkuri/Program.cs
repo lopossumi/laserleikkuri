@@ -45,18 +45,9 @@
 //
 // Program code starts here:
 
-using System;
-using System.Collections.Generic;
-using System.Configuration;
 using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
-using JsonSerializer = Newtonsoft.Json.JsonSerializer;
-
 
 namespace Laserleikkuri
 {
@@ -64,20 +55,13 @@ namespace Laserleikkuri
     {
         static readonly HttpClient client = new HttpClient();
         static readonly string url = "https://api.hel.fi/respa/v1/resource/axwzr3i57yba/?start={0}&end={1}&format=json";
-        static readonly string jsonFile = "data.json";
+        static readonly string availableTimesFile = "availableTimes.json";
         static readonly TimeSpan interval = TimeSpan.FromMinutes(10);
-        private static string telegramBotToken = "";
-        private static string telegramChatId = "";
+        private static string telegramBotToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN") ?? throw new Exception("TELEGRAM_BOT_TOKEN environment variable not set");
+        private static string telegramChatId = Environment.GetEnvironmentVariable("TELEGRAM_CHAT_ID") ?? throw new Exception("TELEGRAM_CHAT_ID environment variable not set");
 
         static async Task Main(string[] args)
         {
-
-            // read telegram bot token and chat id from file telegram_config.json
-            var telegramConfig = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("telegram_config.json")) 
-                ?? throw new ConfigurationErrorsException("Invalid telegram bot configuration.");
-            telegramBotToken = telegramConfig["bot_token"];
-            telegramChatId = telegramConfig["chat_id"];
-
             while (true)
             {
                 try
@@ -99,7 +83,7 @@ namespace Laserleikkuri
             var response = await client.GetAsync(
                 string.Format(
                     url,
-                    startDate.ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture),
+                    startDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                     endDate.ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture)));
             response.EnsureSuccessStatusCode();
             var responseBody = await response.Content.ReadAsStringAsync();
@@ -131,15 +115,15 @@ namespace Laserleikkuri
                 availableTimes.AddRange(available);
             }
             var json = JsonConvert.SerializeObject(availableTimes);
-            if (File.Exists(jsonFile))
+            if (File.Exists(availableTimesFile))
             {
-                var oldJson = File.ReadAllText(jsonFile);
+                var oldJson = File.ReadAllText(availableTimesFile);
                 if (json == oldJson)
                 {
                     return;
                 }
             }
-            File.WriteAllText(jsonFile, json);
+            File.WriteAllText(availableTimesFile, json);
 
             var output = availableTimes.Select(x => $"{x.Begin.ToShortDateString()}: {x.Begin.ToShortTimeString()} - {x.End.ToShortTimeString()}");
             Console.WriteLine(string.Join(Environment.NewLine, output));
