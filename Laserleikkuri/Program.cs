@@ -2,7 +2,7 @@
 //
 // Instructions for the task:
 // Fetch data from API from address https://api.hel.fi/respa/v1/resource/axwzr3i57yba/?start={startDate}&end={endDate}&format=json
-// and find the available times for the next month.
+// and find the available times for the next two weeks.
 //
 // The input looks something like this:
 // {
@@ -64,12 +64,18 @@
 //
 // Program code starts here:
 
+using System.Globalization;
 using Newtonsoft.Json;
 
 var startDate = DateTime.Now;
-var endDate = startDate.AddMonths(1);
+var endDate = startDate.AddDays(14);
 
-var url = $"https://api.hel.fi/respa/v1/resource/axwzr3i57yba/?end={endDate:yyyy-MM-dd}&format=json&start={startDate:yyyy-MM-dd}";
+var endpoint = $"https://api.hel.fi/respa/v1/resource/axwzr3i57yba/?start={{0}}&end={{1}}&format=json";
+var url = string.Format(
+    endpoint, 
+    startDate.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture), 
+    endDate.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture));
+
 var client = new HttpClient();
 var response = await client.GetAsync(url);
 var content = await response.Content.ReadAsStringAsync();
