@@ -50,3 +50,4 @@ StyleCop.Cache
 # Other
 .DS_Store
 availableTimes.json
+telegram_config.json
