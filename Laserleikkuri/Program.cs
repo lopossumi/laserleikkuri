@@ -45,8 +45,6 @@
 //
 // Program code starts here:
 
-using System.Globalization;
-using System.Text.Json;
 using Newtonsoft.Json;
 
 namespace Laserleikkuri
@@ -80,54 +78,75 @@ namespace Laserleikkuri
         {
             var startDate = DateTime.Now;
             var endDate = startDate.AddDays(30);
-            var response = await client.GetAsync(
-                string.Format(
-                    url,
-                    startDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    endDate.ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture)));
+
+            var calendar = await FetchCalendar(startDate, endDate);
+            var availableTimes = ParseAvailableTimes(calendar);
+            var json = JsonConvert.SerializeObject(availableTimes);
+
+            List<TimeSlot> oldTimes;
+            if (!File.Exists(availableTimesFile))
+            {
+                File.WriteAllText(availableTimesFile, json);
+                oldTimes = new List<TimeSlot>();
+            }
+            else
+            {
+                var oldJson = File.ReadAllText(availableTimesFile);
+                oldTimes = JsonConvert.DeserializeObject<List<TimeSlot>>(oldJson) ?? new List<TimeSlot>();
+            }
+
+            var newTimes = availableTimes.Except(oldTimes).ToList();
+
+            if (newTimes.Any())
+            {
+                var output = newTimes.Select(x => x.ToString()).ToList();
+                Console.WriteLine(string.Join(Environment.NewLine, output));
+                await SendTelegramMessage($"New available times:{Environment.NewLine}{string.Join(Environment.NewLine, output)}");
+            }
+            File.WriteAllText(availableTimesFile, json);
+            return;
+        }
+
+        private static async Task<Calendar> FetchCalendar(DateTime startDate, DateTime endDate)
+        {
+            var response = await client.GetAsync(string.Format(url, startDate.GetDateString(), endDate.GetIsoString()));
             response.EnsureSuccessStatusCode();
             var responseBody = await response.Content.ReadAsStringAsync();
-            var data = JsonConvert.DeserializeObject<Root>(responseBody);
-            var availableTimes = new List<Reservation>();
+            var calendar = JsonConvert.DeserializeObject<Calendar>(responseBody) 
+                ?? throw new Exception("Failed to parse response");
+            return calendar;
+        }
+
+        private static List<TimeSlot> ParseAvailableTimes(Calendar data)
+        {
+            var availableTimes = new List<TimeSlot>();
             foreach (var openingHours in data.OpeningHours)
             {
                 if (openingHours.Opens == null || openingHours.Closes == null)
                 {
                     continue;
                 }
-                var opens = DateTime.Parse(openingHours.Opens);
-                var closes = DateTime.Parse(openingHours.Closes);
+                var opens = (DateTime)openingHours.Opens;
+                var closes = (DateTime)openingHours.Closes;
                 var reservations = data.Reservations.Where(r => r.Begin >= opens && r.End <= closes);
-                var available = new List<Reservation>();
+                var available = new List<TimeSlot>();
                 var begin = opens;
+                
                 foreach (var reservation in reservations)
                 {
                     if (reservation.Begin > begin)
                     {
-                        available.Add(new Reservation { Begin = begin, End = reservation.Begin });
+                        available.Add(new TimeSlot { Begin = begin, End = reservation.Begin });
                     }
                     begin = reservation.End;
                 }
                 if (begin < closes)
                 {
-                    available.Add(new Reservation { Begin = begin, End = closes });
+                    available.Add(new TimeSlot { Begin = begin, End = closes });
                 }
                 availableTimes.AddRange(available);
             }
-            var json = JsonConvert.SerializeObject(availableTimes);
-            if (File.Exists(availableTimesFile))
-            {
-                var oldJson = File.ReadAllText(availableTimesFile);
-                if (json == oldJson)
-                {
-                    return;
-                }
-            }
-            File.WriteAllText(availableTimesFile, json);
-
-            var output = availableTimes.Select(x => $"{x.Begin.ToShortDateString()}: {x.Begin.ToShortTimeString()} - {x.End.ToShortTimeString()}");
-            Console.WriteLine(string.Join(Environment.NewLine, output));
-            await SendTelegramMessage($"Next available times:{Environment.NewLine}{string.Join(Environment.NewLine, output)}");
+            return availableTimes;
         }
 
         static async Task SendTelegramMessage(string message)
@@ -136,25 +155,4 @@ namespace Laserleikkuri
             response.EnsureSuccessStatusCode();
         }
     }
-}
-
-public class Root
-{
-    [JsonProperty("opening_hours")]
-    public List<OpeningHours> OpeningHours { get; set; }
-    [JsonProperty("reservations")]
-    public List<Reservation> Reservations { get; set; }
-}
-
-public class OpeningHours
-{
-    public DateTime Date { get; set; }
-    public string Opens { get; set; }
-    public string Closes { get; set; }
-}
-
-public class Reservation
-{
-    public DateTime Begin { get; set; }
-    public DateTime End { get; set; }
 }
