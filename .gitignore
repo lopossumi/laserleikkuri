@@ -1,0 +1,51 @@
+# Ignore build output folders
+bin/
+obj/
+
+# Ignore NuGet package restore files
+packages/
+
+# Ignore Visual Studio files
+.vs/
+*.suo
+*.user
+*.sln.docstates
+
+# Ignore Resharper files
+_ReSharper*/
+
+# Ignore build artifacts
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+*.vspscc
+*.vssscc
+*.bak
+*.swp
+*.userprefs
+*.dotCover
+*.resharper
+*.sln.ide
+
+# Ignore test results
+TestResults/
+
+# Ignore StyleCop files
+StyleCop.Cache
+
+# Ignore NCrunch files
+*.ncrunch*
+.*crunch*.local.xml
+
+# Ignore code coverage files
+*.opencover.xml
+*.dotCover.xml
+*.coverlet
+.coverage
+.cobertura.xml
+.jacoco.xml
+
+# Other
+.DS_Store
